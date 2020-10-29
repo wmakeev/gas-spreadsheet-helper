@@ -49,17 +49,25 @@ namespace SpreadsheetHelper {
       if (sheet) {
         this.sheet = sheet
       } else {
-        throw new Error(`Sheet "${sheetName}" not exist"`)
+        throw new Errors.SpreadsheetHelperError(
+          `Лист "${sheetName}" не существует"`
+        )
       }
 
       // Header
       const frozenRows = this.sheet.getFrozenRows()
 
       if (frozenRows === 0) {
-        throw new Error(`Заголовок листа "${sheetName}" должен быть закреплен.`)
+        throw new Errors.SpreadsheetHelperError(
+          `Заголовок листа "${sheetName}" должен быть закреплен.`,
+          sheetName,
+          1
+        )
       } else if (frozenRows > 1) {
-        throw new Error(
-          `Заголовок листа "${sheetName}" должен быть одной строкой.`
+        throw new Errors.SpreadsheetHelperError(
+          `Заголовок листа "${sheetName}" должен быть одной строкой.`,
+          sheetName,
+          1
         )
       }
 
@@ -69,7 +77,10 @@ namespace SpreadsheetHelper {
       const lastColumn = range.getLastColumn()
 
       if (lastRow === 0 || lastColumn === 0) {
-        throw new Error(`Лист "${sheetName}" не заполнен.`)
+        throw new Errors.SpreadsheetHelperError(
+          `Лист "${sheetName}" не заполнен.`,
+          sheetName
+        )
       }
 
       const sheetValues = range.getValues() as CellValue[][]
@@ -78,22 +89,28 @@ namespace SpreadsheetHelper {
 
       //#region Header test
       if (headers.some(h => h === '')) {
-        throw new Error(
-          `Заголовки в таблице "${this.sheetName}" должны быть заполнены`
+        throw new Errors.SpreadsheetHelperError(
+          `Заголовки в таблице "${this.sheetName}" должны быть заполнены`,
+          this.sheetName,
+          1
         )
       }
 
       if (headers.some(h => typeof h !== 'string')) {
-        throw new Error(
-          `Заголовки в таблице "${this.sheetName}" должны быть строками`
+        throw new Errors.SpreadsheetHelperError(
+          `Заголовки в таблице "${this.sheetName}" должны быть строками`,
+          this.sheetName,
+          1
         )
       }
 
       const uniqHeaders = Array.from(new Set(headers))
 
       if (headers.length !== uniqHeaders.length) {
-        throw new Error(
-          `Заголовки в таблице "${this.sheetName}" не должны повторяться`
+        throw new Errors.SpreadsheetHelperError(
+          `Заголовки в таблице "${this.sheetName}" не должны повторяться`,
+          this.sheetName,
+          1
         )
       }
       //#endregion
@@ -119,11 +136,12 @@ namespace SpreadsheetHelper {
         )
 
         if (lostHeaders.length) {
-          throw (
-            new Error(
-              `В таблице "${this.sheetName}" отсутствуют необходимые заголовки -` +
-                lostHeaders.map(h => `"${h}"`).join(', ')
-            ) + '.'
+          throw new Errors.SpreadsheetHelperError(
+            `В таблице "${this.sheetName}" отсутствуют необходимые заголовки -` +
+              lostHeaders.map(h => `"${h}"`).join(', ') +
+              '.',
+            this.sheetName,
+            1
           )
         }
       }
@@ -147,7 +165,10 @@ namespace SpreadsheetHelper {
     /** Return row record index hash */
     private getRecordHash(record: T | RowRecordValue[]) {
       if (!this.options.keyHeaders?.length) {
-        throw new Error('Ключевые заголовки в таблице не заданы')
+        throw new Errors.SpreadsheetHelperError(
+          'В таблице не заданы ключевые заголовки',
+          this.sheetName
+        )
       }
 
       const keyValues: RowRecordValue[] =
@@ -196,14 +217,16 @@ namespace SpreadsheetHelper {
         if (isNewRow && this.rowByKeyMap.has(recHash)) {
           const existRow = this.rowByKeyMap.get(recHash)!
 
-          throw new Error(
+          throw new Errors.SpreadsheetHelperError(
             `В таблице "${this.sheetName}"` +
               (this.options.keyHeaders.length > 1
                 ? ` по ключевым полям ${JSON.stringify(
                     this.options.keyHeaders
                   )}`
                 : ` по ключевому полю "${this.options.keyHeaders![0]}"`) +
-              ` строка ${existRow.getLine()} аналогична строке ${row.getLine()}`
+              ` строка ${existRow.getLine()} аналогична строке ${row.getLine()}`,
+            this.sheetName,
+            row.getLine()
           )
         } else {
           this.rowByKeyMap.set(recHash, row)
@@ -237,9 +260,10 @@ namespace SpreadsheetHelper {
           this.sheet.getLastColumn()
         )
       } catch (err) {
-        throw new Error(
+        throw new Errors.SpreadsheetHelperError(
           `Ошибка получения диапазона .getRange(1, 1, ${lastRow}, ${lastColumn})` +
-            ` для листа "${this.sheetName}"`
+            ` для листа "${this.sheetName}"`,
+          this.sheetName
         )
       }
 
@@ -258,7 +282,11 @@ namespace SpreadsheetHelper {
       if (this.headerColumn.has(headerName)) {
         return this.headerColumn.get(headerName)
       } else {
-        throw new Error(`Заголовок "${headerName}" не найден`)
+        throw new Errors.SpreadsheetHelperError(
+          `Заголовок "${headerName}" не найден`,
+          this.sheetName,
+          1
+        )
       }
     }
 
@@ -269,18 +297,20 @@ namespace SpreadsheetHelper {
 
     getRowByKey(key: RowRecordValue | RowRecordValue[]) {
       if (!this.indexed()) {
-        throw new Error(
+        throw new Errors.SpreadsheetHelperError(
           `Нельзя получить строку по ключу -` +
-            ` таблица создана без указания индекса`
+            ` таблица создана без указания индекса`,
+          this.sheetName
         )
       }
 
       const rowKeys = key instanceof Array ? key : [key]
 
       if (rowKeys.length !== this.options.keyHeaders?.length) {
-        throw new Error(
+        throw new Errors.SpreadsheetHelperError(
           `Нельзя получить строку по ключу из ${rowKeys.length} заголовков` +
-            ` таблица создана с индексом длинной ${this.options.keyHeaders?.length} заголовков`
+            ` таблица создана с индексом длинной ${this.options.keyHeaders?.length} заголовков`,
+          this.sheetName
         )
       }
 
